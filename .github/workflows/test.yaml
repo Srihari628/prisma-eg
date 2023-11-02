@@ -1,0 +1,61 @@
+name: Run Tests
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - name: Checkout gs-node-service
+        uses: actions/checkout@v4
+        with:
+          repository: godspeedsystems/gs-node-service
+          token: ${{ secrets.GIT_TOKEN }}
+          path: gs-node-service
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run compile
+        run: npm run build
+
+      - name: Checkout test project
+        uses: actions/checkout@v4
+        with:
+          repository: godspeedsystems/gs-test-project
+          token: ${{ secrets.GIT_TOKEN }}
+          path: gs-test-project
+      - name: Install project dependencies
+        run: |
+          cd gs-test-project
+          npm install
+
+      - name: Modify src/index.ts
+        run: |
+          cd gs-test-project
+          sed -i 's#@godspeedsystems/core#../../dist/godspeed.js#g' src/index.ts
+          pwd
+          cd src/datasources
+          sed -i 's#file:home/godspeed/gs-test-project/godspeed1.db#file:///home/srihari/godspeed/gs-node-service/gs-test-project/godspeed1.db#g' sqlite.prisma
+          sudo apt-get update -y
+          sudo apt-get install -y openssl
+      - name: Run test-project test-suite
+        run: |
+          cd gs-test-project
+          npx prisma generate --schema=src/datasources/sqlite.prisma
+          npm run dev
